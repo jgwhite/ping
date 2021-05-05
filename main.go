@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"net/http"
 	"os"
@@ -15,24 +14,36 @@ import (
 
 func main() {
 	hlog := hclog.L()
-	addr, ok := os.LookupEnv("ADDR")
-
-	if !ok {
-		addr = ":8080"
-	}
-
-	handler := handlers.CustomLoggingHandler(nil, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/" {
-			fmt.Fprintf(w, "pong")
-		} else {
-			w.WriteHeader(http.StatusNotFound)
-		}
-	}), requestLogger(hlog))
+	addr := lookupAddr()
+	handler := handlers.CustomLoggingHandler(nil, http.HandlerFunc(rootHandler), requestLogger(hlog))
 
 	http.Handle("/", handler)
 
 	hlog.Info("Starting server on " + addr)
-	log.Fatal(http.ListenAndServe(addr, nil))
+
+	err := http.ListenAndServe(addr, nil)
+
+	if err != nil {
+		hlog.Error(err.Error())
+	}
+}
+
+func lookupAddr() string {
+	addr, ok := os.LookupEnv("ADDR")
+
+	if ok {
+		return addr
+	} else {
+		return ":8080"
+	}
+}
+
+func rootHandler(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path == "/" {
+		fmt.Fprintf(w, "pong")
+	} else {
+		w.WriteHeader(http.StatusNotFound)
+	}
 }
 
 func requestLogger(hlog hclog.Logger) func(_ io.Writer, params handlers.LogFormatterParams) {
